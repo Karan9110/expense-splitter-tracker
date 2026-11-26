@@ -1,16 +1,63 @@
-# React + Vite
+# Expense Splitter
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A single-page React app for tracking shared group expenses (2 to 10 members) and computing the fewest possible payments needed to settle all debts.
 
-Currently, two official plugins are available:
+## How to run
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+npm install
+npm run dev
+```
 
-## React Compiler
+For a production build:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm run build
+```
 
-## Expanding the ESLint configuration
+## Features completed
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- [x] **Members (2 to 10):** Add and remove members with inline validation (trimmed, non-empty, case-insensitive duplicate check, max 10 limit, removal blocked if linked to expenses).
+- [x] **Add expense:** Inline validated form (`title`, `amount` up to 2 decimals, `paidBy`, `splitAmong` checkboxes defaulting to all members), disabled with a hint when fewer than 2 members exist.
+- [x] **Expense list:** Sorted newest first with delete support.
+- [x] **Balances table:** Shows `Paid`, `Share`, and `Net` in integer paise arithmetic so net balances always sum to `₹0.00`, with color and text status labels (`gets back`, `owes`, `settled`).
+- [x] **Settle-up (minimum transactions):** Exact minimum-payment settlement list (`A pays B ₹X`).
+- [x] **Persistence & reset:** Auto-saved to `localStorage` under `expenseSplitter.v1` with safe JSON error handling and an inline two-step `Reset group` confirmation.
+- [x] **Bonus — Filter by member:** Filter the expense list by any member (as payer or participant) or view all.
+- [x] **Bonus — Responsive layout:** Two-column desktop layout that stacks cleanly into a single column below `700px` with horizontally scrollable tables and `44px+` tap targets.
+
+## How settle-up works
+
+All amounts are stored as integer paise (`₹1 = 100 paise`), and equal-split remainders are distributed `+1 paise` at a time in member-list order so no paise are lost. To minimize transactions for up to 10 members, a bitmask dynamic programming pass partitions non-zero balances into the maximum number of disjoint zero-sum subgroups, and each subgroup of size `k` is settled in `k - 1` payments via largest-creditor/largest-debtor matching.
+
+## Tech used
+
+- React (function components, `useReducer`, `useMemo`, `useState`, `useEffect`, `useRef`)
+- JavaScript (ES modules, pure logic layer in `src/logic/`)
+- Plain CSS (`src/App.css`)
+- Browser `localStorage`
+
+## Known limitations
+
+- Only equal splits across selected participants are supported (no custom/percentage splits).
+- State is stored locally in a single browser `localStorage` key (`expenseSplitter.v1`) with no backend or multi-group switcher.
+- Group size is capped at 10 members (`MAX_MEMBERS = 10`).
+
+## Sample test case
+
+Members: **Rahul**, **Priya**, **Aman**
+
+| Expense | Amount | Paid by | Split among |
+| --- | --- | --- | --- |
+| Dinner | ₹900.00 | Rahul | Rahul, Priya, Aman |
+| Cab | ₹300.00 | Priya | Priya, Aman |
+| Snacks | ₹150.00 | Aman | Rahul, Priya, Aman |
+
+Expected balances:
+- **Rahul:** Paid `₹900.00`, Share `₹350.00`, Net `+₹550.00 (gets back)`
+- **Priya:** Paid `₹300.00`, Share `₹500.00`, Net `-₹200.00 (owes)`
+- **Aman:** Paid `₹150.00`, Share `₹500.00`, Net `-₹350.00 (owes)`
+
+Expected settle-up (2 payments):
+1. **Aman** pays **Rahul** `₹350.00`
+2. **Priya** pays **Rahul** `₹200.00`
