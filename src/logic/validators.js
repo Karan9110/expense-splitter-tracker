@@ -1,5 +1,5 @@
 import { MAX_MEMBERS } from '../constants.js'
-import { formatPercent, formatRupees, toBasisPoints, toPaise } from './money.js'
+import { formatRupees, toPaise } from './money.js'
 
 /**
  * Validate a new member name against group limit, emptiness, and case-insensitive duplicates.
@@ -46,41 +46,22 @@ export function validateAmount(rawAmount) {
   return ''
 }
 
-function validateCustomSplit({ splitMode, splitAmong, splitInputs, totalPaise }) {
-  if (splitMode === 'exact') {
-    if (totalPaise === null || totalPaise <= 0) {
-      return ''
-    }
-
-    let sumPaise = 0
-    for (const memberId of splitAmong) {
-      const val = toPaise(splitInputs[memberId] ?? '')
-      if (val === null) {
-        return 'Enter valid non-negative rupee amounts (max 2 decimals) for all selected members.'
-      }
-      sumPaise += val
-    }
-
-    if (sumPaise !== totalPaise) {
-      return `Exact amounts add up to ${formatRupees(sumPaise)}, expected ${formatRupees(totalPaise)}.`
-    }
+function validateExactSplit({ splitAmong, splitInputs, totalPaise }) {
+  if (totalPaise === null || totalPaise <= 0) {
     return ''
   }
 
-  if (splitMode === 'percent') {
-    let sumBps = 0
-    for (const memberId of splitAmong) {
-      const bps = toBasisPoints(splitInputs[memberId] ?? '')
-      if (bps === null || bps > 10000) {
-        return 'Enter valid percentages between 0 and 100 (max 2 decimals) for all selected members.'
-      }
-      sumBps += bps
+  let sumPaise = 0
+  for (const memberId of splitAmong) {
+    const val = toPaise(splitInputs[memberId] ?? '')
+    if (val === null) {
+      return 'Enter valid non-negative rupee amounts (max 2 decimals) for all selected members.'
     }
+    sumPaise += val
+  }
 
-    if (sumBps !== 10000) {
-      return `Percentages add up to ${formatPercent(sumBps)}, must equal 100.00%.`
-    }
-    return ''
+  if (sumPaise !== totalPaise) {
+    return `Exact amounts add up to ${formatRupees(sumPaise)}, expected ${formatRupees(totalPaise)}.`
   }
 
   return ''
@@ -117,9 +98,8 @@ export function validateExpense(
 
   if (validSplits.length === 0) {
     errors.splitAmong = 'Select at least one member to split with.'
-  } else if (splitMode !== 'equal') {
-    errors.splitAmong = validateCustomSplit({
-      splitMode,
+  } else if (splitMode === 'exact') {
+    errors.splitAmong = validateExactSplit({
       splitAmong: validSplits,
       splitInputs,
       totalPaise: toPaise(amount),

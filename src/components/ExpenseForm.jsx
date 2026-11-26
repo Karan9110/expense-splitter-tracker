@@ -1,12 +1,6 @@
 import { useRef, useState } from 'react'
 import { MIN_MEMBERS } from '../constants.js'
-import {
-  formatPercent,
-  formatRupees,
-  percentSplit,
-  toBasisPoints,
-  toPaise,
-} from '../logic/money.js'
+import { formatRupees, toPaise } from '../logic/money.js'
 import { validateExpense } from '../logic/validators.js'
 import FieldError from './FieldError.jsx'
 
@@ -20,7 +14,6 @@ const INITIAL_ERRORS = {
 const SPLIT_MODES = [
   { id: 'equal', label: 'Equal' },
   { id: 'exact', label: 'Exact (₹)' },
-  { id: 'percent', label: 'Percent (%)' },
 ]
 
 function ExpenseForm({ members, onAddExpense }) {
@@ -73,66 +66,38 @@ function ExpenseForm({ members, onAddExpense }) {
     clearFieldError('splitAmong')
   }
 
-  function buildSplits(amountPaise) {
-    if (splitMode === 'exact') {
-      const splits = {}
-      splitAmong.forEach((memberId) => {
-        splits[memberId] = toPaise(splitInputs[memberId] ?? '') ?? 0
-      })
-      return splits
+  function buildSplits() {
+    if (splitMode !== 'exact') {
+      return undefined
     }
 
-    if (splitMode === 'percent') {
-      const bpsList = splitAmong.map(
-        (memberId) => toBasisPoints(splitInputs[memberId] ?? '') ?? 0,
-      )
-      const shares = percentSplit(amountPaise, bpsList)
-      const splits = {}
-      splitAmong.forEach((memberId, index) => {
-        splits[memberId] = shares[index]
-      })
-      return splits
-    }
-
-    return undefined
+    const splits = {}
+    splitAmong.forEach((memberId) => {
+      splits[memberId] = toPaise(splitInputs[memberId] ?? '') ?? 0
+    })
+    return splits
   }
 
-  function renderSplitSummary() {
-    if (splitMode === 'equal' || splitAmong.length === 0) {
+  function renderExactSummary() {
+    if (splitMode !== 'exact' || splitAmong.length === 0) {
       return null
     }
 
-    if (splitMode === 'exact') {
-      const totalPaise = toPaise(amount)
-      const assignedPaise = splitAmong.reduce(
-        (sum, id) => sum + (toPaise(splitInputs[id] ?? '') ?? 0),
-        0,
-      )
-      if (totalPaise === null) {
-        return <p className="split-summary">Assigned: {formatRupees(assignedPaise)}</p>
-      }
-      const remaining = totalPaise - assignedPaise
-      return (
-        <p className={`split-summary ${remaining === 0 ? 'split-summary-ok' : ''}`}>
-          Assigned {formatRupees(assignedPaise)} / {formatRupees(totalPaise)} (
-          {remaining >= 0
-            ? `${formatRupees(remaining)} remaining`
-            : `${formatRupees(-remaining)} over`})
-        </p>
-      )
-    }
-
-    const assignedBps = splitAmong.reduce(
-      (sum, id) => sum + (toBasisPoints(splitInputs[id] ?? '') ?? 0),
+    const totalPaise = toPaise(amount)
+    const assignedPaise = splitAmong.reduce(
+      (sum, id) => sum + (toPaise(splitInputs[id] ?? '') ?? 0),
       0,
     )
-    const remainingBps = 10000 - assignedBps
+    if (totalPaise === null) {
+      return <p className="split-summary">Assigned: {formatRupees(assignedPaise)}</p>
+    }
+    const remaining = totalPaise - assignedPaise
     return (
-      <p className={`split-summary ${remainingBps === 0 ? 'split-summary-ok' : ''}`}>
-        Assigned {formatPercent(assignedBps)} / 100.00% (
-        {remainingBps >= 0
-          ? `${formatPercent(remainingBps)} remaining`
-          : `${formatPercent(-remainingBps)} over`})
+      <p className={`split-summary ${remaining === 0 ? 'split-summary-ok' : ''}`}>
+        Assigned {formatRupees(assignedPaise)} / {formatRupees(totalPaise)} (
+        {remaining >= 0
+          ? `${formatRupees(remaining)} remaining`
+          : `${formatRupees(-remaining)} over`})
       </p>
     )
   }
@@ -161,7 +126,7 @@ function ExpenseForm({ members, onAddExpense }) {
     }
 
     const amountPaise = toPaise(amount)
-    const splits = buildSplits(amountPaise)
+    const splits = buildSplits()
 
     onAddExpense({
       title: title.trim(),
@@ -185,7 +150,7 @@ function ExpenseForm({ members, onAddExpense }) {
   return (
     <section className="card" aria-labelledby="add-expense-heading">
       <div className="section-header">
-        <h2 id="add-expense-heading">2. Add expense</h2>
+        <h2 id="add-expense-heading">Add Expense</h2>
       </div>
 
       {isGated && (
@@ -331,10 +296,8 @@ function ExpenseForm({ members, onAddExpense }) {
                           onChange={(event) =>
                             handleSplitInputChange(member.id, event.target.value)
                           }
-                          placeholder={splitMode === 'exact' ? '₹ 0.00' : '0.00 %'}
-                          aria-label={`${member.name} ${
-                            splitMode === 'exact' ? 'amount in rupees' : 'percentage'
-                          }`}
+                          placeholder="₹ 0.00"
+                          aria-label={`${member.name} amount in rupees`}
                         />
                       )}
                     </div>
@@ -343,7 +306,7 @@ function ExpenseForm({ members, onAddExpense }) {
               </div>
             )}
 
-            {renderSplitSummary()}
+            {renderExactSummary()}
             <FieldError id="expense-split-error" message={errors.splitAmong} />
           </div>
 

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { MAX_MEMBERS } from '../constants.js'
+import { formatRupees } from '../logic/money.js'
 import { validateMemberName } from '../logic/validators.js'
 import FieldError from './FieldError.jsx'
 
@@ -7,12 +8,16 @@ function MemberSection({
   members,
   expenses,
   settlements = [],
+  balances = [],
   onAddMember,
   onRemoveMember,
 }) {
   const [name, setName] = useState('')
   const [addError, setAddError] = useState('')
   const [removeError, setRemoveError] = useState('')
+
+  const balanceByMemberId = new Map(balances.map((b) => [b.memberId, b]))
+  const capacityPct = Math.round((members.length / MAX_MEMBERS) * 100)
 
   function handleSubmit(event) {
     event.preventDefault()
@@ -76,15 +81,22 @@ function MemberSection({
   return (
     <section className="card" aria-labelledby="members-heading">
       <div className="section-header">
-        <h2 id="members-heading">1. Members</h2>
+        <h2 id="members-heading">Group Members</h2>
         <span className="counter-badge">
           {members.length} / {MAX_MEMBERS} members
         </span>
       </div>
 
+      <div className="capacity-bar" aria-hidden="true">
+        <div
+          className="capacity-fill"
+          style={{ width: `${capacityPct}%` }}
+        />
+      </div>
+
       <form className="member-form" onSubmit={handleSubmit} noValidate>
         <div className="field-group">
-          <label htmlFor="member-name">Member name</label>
+          <label htmlFor="member-name">Add a member</label>
           <div className="inline-input-row">
             <input
               id="member-name"
@@ -96,7 +108,7 @@ function MemberSection({
               aria-invalid={Boolean(addError)}
             />
             <button type="submit" className="btn-primary">
-              Add
+              Add member
             </button>
           </div>
           <FieldError id="member-name-error" message={addError} />
@@ -109,19 +121,32 @@ function MemberSection({
         </p>
       ) : (
         <ul className="member-list">
-          {members.map((member) => (
-            <li key={member.id} className="member-item">
-              <span className="member-name">{member.name}</span>
-              <button
-                type="button"
-                className="btn-ghost-danger"
-                onClick={() => handleRemove(member)}
-                aria-label={`Remove ${member.name}`}
-              >
-                Remove
-              </button>
-            </li>
-          ))}
+          {members.map((member) => {
+            const stats = balanceByMemberId.get(member.id)
+            const expenseCount = expenses.filter(
+              (e) => e.paidBy === member.id || e.splitAmong.includes(member.id),
+            ).length
+
+            return (
+              <li key={member.id} className="member-item">
+                <div className="member-info">
+                  <span className="member-name">{member.name}</span>
+                  <span className="member-stats">
+                    {expenseCount} {expenseCount === 1 ? 'expense' : 'expenses'}
+                    {stats ? ` · Paid ${formatRupees(stats.paidPaise)}` : ''}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="btn-ghost-danger btn-compact"
+                  onClick={() => handleRemove(member)}
+                  aria-label={`Remove ${member.name}`}
+                >
+                  Remove
+                </button>
+              </li>
+            )
+          })}
         </ul>
       )}
 
